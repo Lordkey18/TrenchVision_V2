@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trench Vision</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <h1>Trench Vision</h1>
+    <form id="tokenForm">
+        <input type="text" id="ca" placeholder="Contract Address (CA)" required>
+        <input type="text" id="name" placeholder="Nom (facultatif)">
+        <input type="number" id="threshold_high" placeholder="Seuil supérieur ($)" step="0.000001">
+        <input type="number" id="threshold_low" placeholder="Seuil inférieur ($)" step="0.000001">
+        <button type="button" onclick="addToken()">Ajouter</button>
+        <button type="button" id="editButton" disabled onclick="editToken()">Modifier</button>
+    </form>
+    <button id="startButton" onclick="startTracking()">Démarrer</button>
+    <button id="stopButton" disabled onclick="stopTracking()">Arrêter</button>
+    <p id="status">Statut : En attente</p>
+    <table id="tokenTable">
+        <thead>
+            <tr>
+                <th>Nom (CA)</th>
+                <th>Seuil Haut ($)</th>
+                <th>Seuil Bas ($)</th>
+                <th>Prix Actuel ($)</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <h2>Historique des Alertes</h2>
+    <ul id="alertList"></ul>
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .then(() => console.log('Service Worker enregistré'))
+                .catch(err => console.error('Erreur Service Worker :', err));
+        }
+    </script>
+</body>
+</html>

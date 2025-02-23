@@ -1,0 +1,18 @@
+[build]
+publish = "static"
+command = "echo 'Building static site'"
+
+[functions]
+directory = "netlify/functions"
+
+[dev]
+command = "python -m http.server 8080"
+port = 8888
+targetPort = 8080
+publish = "static"
+
+[[redirects]]
+from = "/*"
+to = "/.netlify/functions/api/:splat"
+status = 200
+force = true
