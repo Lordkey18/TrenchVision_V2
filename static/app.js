@@ -58,7 +58,7 @@ async function removeToken(index) {
     try {
         const response = await fetch(`/.netlify/functions/api/remove_token/${index}`, { method: 'POST' });
         const data = await response.json();
-        console.log("Réponse remove_token:", data);
+        console.log("Réponse remove_token:", data, "Statut:", response.status);
         if (response.ok) {
             updateTable();
             clearInputs();
@@ -69,26 +69,36 @@ async function removeToken(index) {
         }
     } catch (error) {
         console.error("Erreur réseau remove_token:", error);
-        alert("Erreur réseau : " + error.message);
+        alert("Erreur réseau : " + error.message + " - Statut: " + (error.status || "inconnu"));
     }
 }
 
 async function startTracking() {
     document.getElementById("status").textContent = "Tentative de démarrage...";
-    console.log("Bouton Démarrer cliqué - Plateforme :", navigator.userAgent); // Ajoute l’agent utilisateur pour identifier le mobile
-    if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-        const permission = await Notification.requestPermission();
-        console.log(`Permission pour les notifications ${permission === "granted" ? "accordée" : "refusée"}`);
+    console.log("Bouton Démarrer cliqué - Plateforme :", navigator.userAgent);
+    let hasNotifications = true;
+    try {
+        // Vérifie si Notification est disponible (pour éviter l'erreur sur iOS)
+        if (typeof Notification === 'undefined') {
+            console.warn("Notifications non prises en charge sur cette plateforme (iOS/Safari)");
+            hasNotifications = false;
+        } else if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+            const permission = await Notification.requestPermission();
+            console.log(`Permission pour les notifications ${permission === "granted" ? "accordée" : "refusée"}`);
+        }
+    } catch (error) {
+        console.error("Erreur avec les notifications :", error);
+        hasNotifications = false;
     }
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
             controller.abort();
-            console.error("Timeout de 30s atteint pour /start_tracking");
+            console.error("Timeout de 60s atteint pour /start_tracking");
             document.getElementById("status").textContent = "Erreur : Timeout réseau";
             document.getElementById("status").style.color = "#ff0000";
-            alert("Erreur : La requête a expiré après 30 secondes. Vérifie ta connexion ou réessaie.");
-        }, 30000); // Timeout après 60s
+            alert("Erreur : La requête a expiré après 60 secondes. Vérifie ta connexion ou réessaie.");
+        }, 60000); // Timeout après 60s
         const response = await fetch('/.netlify/functions/api/start_tracking', {
             method: 'POST',
             signal: controller.signal
@@ -169,7 +179,7 @@ async function updateTable() {
 
             if (price !== null && price !== undefined) {
                 if (token.threshold_high && price >= token.threshold_high && !lastToken.high_alert_sent) {
-                    if (Notification.permission === "granted") {
+                    if (hasNotifications && Notification.permission === "granted") {
                         new Notification("Alerte Prix Crypto (Haut)", {
                             body: `Le prix de ${displayText} a dépassé ${token.threshold_high.toFixed(6)} $ ! Actuel : ${price.toFixed(6)} $`,
                             icon: "/static/icons/icon-192x192.png"
@@ -179,7 +189,7 @@ async function updateTable() {
                     token.high_alert_sent = true;
                 }
                 else if (token.threshold_low && price <= token.threshold_low && !lastToken.low_alert_sent) {
-                    if (Notification.permission === "granted") {
+                    if (hasNotifications && Notification.permission === "granted") {
                         new Notification("Alerte Prix Crypto (Bas)", {
                             body: `Le prix de ${displayText} est tombé sous ${token.threshold_low.toFixed(6)} $ ! Actuel : ${price.toFixed(6)} $`,
                             icon: "/static/icons/icon-192x192.png"

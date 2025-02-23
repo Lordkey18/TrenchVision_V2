@@ -155,8 +155,13 @@ exports.handler = async (event, context) => {
         if (event.httpMethod === 'POST' && path === '/start_tracking') {
             if (!running) {
                 running = true;
-                websocket_listener();
-                check_prices_raydium();
+                try {
+                    websocket_listener();
+                    check_prices_raydium();
+                } catch (error) {
+                    console.error(`[${new Date().toISOString()}] Erreur dans websocket_listener/check_prices_raydium : ${error.message}`);
+                    throw error;
+                }
                 console.log(`[${new Date().toISOString()}] Démarrage du suivi pour ${tokens.length} tokens`);
             } else {
                 console.log(`[${new Date().toISOString()}] Suivi déjà en cours`);
@@ -207,8 +212,15 @@ exports.handler = async (event, context) => {
                 body: JSON.stringify({ success: true })
             };
         }
-        if (event.httpMethod === 'POST' && path === '/remove_token/:index') { // Nouvelle route pour supprimer
-            const index = parseInt(path.split('/').pop(), 10);
+        if (event.httpMethod === 'POST' && path.startsWith('/remove_token/')) {
+            const indexMatch = path.match(/\/remove_token\/(\d+)/);
+            if (!indexMatch) {
+                return {
+                    statusCode: 400,
+                    body: JSON.stringify({ error: "Index invalide dans l’URL" })
+                };
+            }
+            const index = parseInt(indexMatch[1], 10);
             if (isNaN(index) || index < 0 || index >= tokens.length) {
                 return {
                     statusCode: 400,
