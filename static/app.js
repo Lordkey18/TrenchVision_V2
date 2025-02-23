@@ -75,14 +75,20 @@ async function removeToken(index) {
 
 async function startTracking() {
     document.getElementById("status").textContent = "Tentative de démarrage...";
-    console.log("Bouton Démarrer cliqué");
+    console.log("Bouton Démarrer cliqué - Plateforme :", navigator.userAgent); // Ajoute l’agent utilisateur pour identifier le mobile
     if (Notification.permission !== "granted" && Notification.permission !== "denied") {
         const permission = await Notification.requestPermission();
         console.log(`Permission pour les notifications ${permission === "granted" ? "accordée" : "refusée"}`);
     }
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // Timeout après 30s
+        const timeoutId = setTimeout(() => {
+            controller.abort();
+            console.error("Timeout de 30s atteint pour /start_tracking");
+            document.getElementById("status").textContent = "Erreur : Timeout réseau";
+            document.getElementById("status").style.color = "#ff0000";
+            alert("Erreur : La requête a expiré après 30 secondes. Vérifie ta connexion ou réessaie.");
+        }, 30000); // Timeout après 60s
         const response = await fetch('/.netlify/functions/api/start_tracking', {
             method: 'POST',
             signal: controller.signal
@@ -217,7 +223,7 @@ async function updateAlerts() {
         const response = await fetch('/.netlify/functions/api/get_alerts');
         const alerts = await response.json();
         console.log("Réponse get_alerts:", alerts);
-        if (Array.isArray(alerts)) { // Vérifie que alerts est un tableau
+        if (Array.isArray(alerts)) {
             const alertList = document.getElementById("alertList");
             alertList.innerHTML = "";
             alerts.forEach(alert => {

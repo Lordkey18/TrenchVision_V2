@@ -207,6 +207,20 @@ exports.handler = async (event, context) => {
                 body: JSON.stringify({ success: true })
             };
         }
+        if (event.httpMethod === 'POST' && path === '/remove_token/:index') { // Nouvelle route pour supprimer
+            const index = parseInt(path.split('/').pop(), 10);
+            if (isNaN(index) || index < 0 || index >= tokens.length) {
+                return {
+                    statusCode: 400,
+                    body: JSON.stringify({ error: "Index invalide" })
+                };
+            }
+            tokens.splice(index, 1); // Supprime le token à l'index spécifié
+            return {
+                statusCode: 200,
+                body: JSON.stringify({ success: true })
+            };
+        }
         if (event.httpMethod === 'GET' && path === '/get_tokens') {
             return {
                 statusCode: 200,
