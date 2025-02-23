@@ -2,13 +2,14 @@ const WebSocket = require('ws');
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 
-const telegramBot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: false });
-const chatId = process.env.TELEGRAM_CHAT_ID;
+const telegramBot = new TelegramBot(process.env.7825461521:AAG9Ru6YnXn2_mGBIZOPaLfx6WYlx42bEks, { polling: false });
+const chatId = process.env.5822819325;
 
 let tokens = [];
 let price_updates = {};
 let running = false;
 let websocket = null;
+let alerts = []; // Initialisation explicite comme tableau vide
 
 function send_telegram_notification(message) {
     return telegramBot.sendMessage(chatId, message);
@@ -78,9 +79,13 @@ async function websocket_listener() {
                         const display_text = token.name || ca.substring(0, 10) + "...";
                         if (token.threshold_high && price_usd >= token.threshold_high && !token.high_alert_sent) {
                             console.log(`[${timestamp}] Seuil haut dépassé pour ${display_text} !`);
+                            const alertMsg = `[${timestamp}] Haut - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_high.toFixed(6)} $)`;
+                            alerts.push(alertMsg); // Ajoute l’alerte au tableau
                             send_telegram_notification(`Le prix de ${token.name || token.ca} a dépassé ${token.threshold_high.toFixed(6)} $ ! Actuel : ${price_usd.toFixed(6)} $`);
                         } else if (token.threshold_low && price_usd <= token.threshold_low && !token.low_alert_sent) {
                             console.log(`[${timestamp}] Seuil bas atteint pour ${display_text} !`);
+                            const alertMsg = `[${timestamp}] Bas - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_low.toFixed(6)} $)`;
+                            alerts.push(alertMsg); // Ajoute l’alerte au tableau
                             send_telegram_notification(`Le prix de ${token.name || token.ca} est tombé sous ${token.threshold_low.toFixed(6)} $ ! Actuel : ${price_usd.toFixed(6)} $`);
                         }
                         // Réinitialisation des alertes
@@ -119,11 +124,16 @@ function check_prices_raydium() {
                     token.price = price_usd;
                     price_updates[token.ca] = price_usd;
                     const display_text = token.name || token.ca.substring(0, 10) + "...";
+                    const timestamp = new Date().toISOString();
                     if (token.threshold_high && price_usd >= token.threshold_high && !token.high_alert_sent) {
-                        console.log(`[${new Date().toISOString()}] Seuil haut dépassé pour ${display_text} !`);
+                        console.log(`[${timestamp}] Seuil haut dépassé pour ${display_text} !`);
+                        const alertMsg = `[${timestamp}] Haut - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_high.toFixed(6)} $)`;
+                        alerts.push(alertMsg); // Ajoute l’alerte au tableau
                         send_telegram_notification(`Le prix de ${token.name || token.ca} a dépassé ${token.threshold_high.toFixed(6)} $ ! Actuel : ${price_usd.toFixed(6)} $`);
                     } else if (token.threshold_low && price_usd <= token.threshold_low && !token.low_alert_sent) {
-                        console.log(`[${new Date().toISOString()}] Seuil bas atteint pour ${display_text} !`);
+                        console.log(`[${timestamp}] Seuil bas atteint pour ${display_text} !`);
+                        const alertMsg = `[${timestamp}] Bas - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_low.toFixed(6)} $)`;
+                        alerts.push(alertMsg); // Ajoute l’alerte au tableau
                         send_telegram_notification(`Le prix de ${token.name || token.ca} est tombé sous ${token.threshold_low.toFixed(6)} $ ! Actuel : ${price_usd.toFixed(6)} $`);
                     }
                     // Réinitialisation des alertes

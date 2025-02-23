@@ -217,13 +217,18 @@ async function updateAlerts() {
         const response = await fetch('/.netlify/functions/api/get_alerts');
         const alerts = await response.json();
         console.log("Réponse get_alerts:", alerts);
-        const alertList = document.getElementById("alertList");
-        alertList.innerHTML = "";
-        alerts.forEach(alert => {
-            const li = document.createElement("li");
-            li.textContent = alert;
-            alertList.appendChild(li);
-        });
+        if (Array.isArray(alerts)) { // Vérifie que alerts est un tableau
+            const alertList = document.getElementById("alertList");
+            alertList.innerHTML = "";
+            alerts.forEach(alert => {
+                const li = document.createElement("li");
+                li.textContent = alert;
+                alertList.appendChild(li);
+            });
+        } else {
+            console.error("Les alertes ne sont pas un tableau :", alerts);
+            alert("Erreur : Les alertes reçues ne sont pas au format attendu.");
+        }
     } catch (error) {
         console.error("Erreur réseau updateAlerts:", error);
         alert("Erreur réseau lors de la mise à jour des alertes : " + error.message);
