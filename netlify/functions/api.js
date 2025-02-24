@@ -28,7 +28,9 @@ async function get_sol_usd_rate() {
 async function check_if_raydium(ca) {
     try {
         const response = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${ca}`);
-        return response.data.pairs && response.data.pairs.some(pair => pair.dexId === "raydium");
+        const isRaydium = response.data.pairs && response.data.pairs.some(pair => pair.dexId === "raydium");
+        console.log(`[${new Date().toISOString()}] Vérification Raydium pour ${ca} : ${isRaydium}`);
+        return isRaydium;
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Erreur vérif Raydium : ${error.message}`);
         return false;
@@ -60,6 +62,8 @@ async function websocket_listener() {
             const payload = { method: "subscribeTokenTrade", keys: pumpfun_tokens };
             websocket.send(JSON.stringify(payload));
             console.log(`[${new Date().toISOString()}] Abonnement WebSocket : ${JSON.stringify(payload)}`);
+        } else {
+            console.log(`[${new Date().toISOString()}] Aucun token Pumpfun à souscrire`);
         }
     });
 
@@ -76,13 +80,14 @@ async function websocket_listener() {
                     const price = sol_amount / token_amount;
                     const price_usd = price * sol_usd_rate;
                     price_updates[ca] = price_usd;
-                    console.log(`[${timestamp}] Prix Pumpfun mis à jour pour ${ca} : ${price_usd}`);
+                    console.log(`[${timestamp}] Prix Pumpfun calculé pour ${ca} : ${price_usd}`);
                     tokens.filter(token => token.ca === ca && !token.is_raydium).forEach(token => {
                         token.price = price_usd;
+                        console.log(`[${timestamp}] Prix appliqué au token ${token.ca} : ${price_usd}`);
                         const display_text = token.name || ca.substring(0, 10) + "...";
                         if (token.threshold_high && price_usd >= token.threshold_high && !token.high_alert_sent) {
                             console.log(`[${timestamp}] Seuil haut dépassé pour ${display_text} !`);
-                            const alertMsg = `[${timestamp}] Haut - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_high.toFixed(6)} $)`
+                            const alertMsg = `[${timestamp}] Haut - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_high.toFixed(6)} $)`;
                             alerts.push(alertMsg);
                             send_telegram_notification(`Le prix de ${token.name || token.ca} a dépassé ${token.threshold_high.toFixed(6)} $ ! Actuel : ${price_usd.toFixed(6)} $`);
                             token.high_alert_sent = true;
@@ -99,6 +104,8 @@ async function websocket_listener() {
                         }
                     });
                 }
+            } else {
+                console.log(`[${timestamp}] Données WebSocket invalides ou incomplètes : ${JSON.stringify(data)}`);
             }
         } catch (error) {
             console.error(`[${new Date().toISOString()}] Erreur parsing WebSocket : ${error.message}`);
@@ -119,6 +126,7 @@ function check_prices_raydium() {
     const interval = setInterval(async () => {
         if (!running) {
             clearInterval(interval);
+            console.log(`[${new Date().toISOString()}] Arrêt de check_prices_raydium`);
             return;
         }
         for (const token of tokens.filter(t => t.is_raydium)) {
