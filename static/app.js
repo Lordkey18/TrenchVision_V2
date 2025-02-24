@@ -56,7 +56,11 @@ async function editToken() {
 
 async function removeToken(index) {
     try {
-        const response = await fetch(`/.netlify/functions/api/remove_token/${index}`, { method: 'POST' });
+        const response = await fetch('/.netlify/functions/api/remove_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ index })
+        });
         const data = await response.json();
         console.log("Réponse remove_token:", data, "Statut:", response.status);
         if (response.ok) {
@@ -76,20 +80,6 @@ async function removeToken(index) {
 async function startTracking() {
     document.getElementById("status").textContent = "Tentative de démarrage...";
     console.log("Bouton Démarrer cliqué - Plateforme :", navigator.userAgent);
-    let hasNotifications = true;
-    try {
-        // Vérifie si Notification est disponible (pour éviter l'erreur sur iOS)
-        if (typeof Notification === 'undefined') {
-            console.warn("Notifications non prises en charge sur cette plateforme (iOS/Safari)");
-            hasNotifications = false;
-        } else if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-            const permission = await Notification.requestPermission();
-            console.log(`Permission pour les notifications ${permission === "granted" ? "accordée" : "refusée"}`);
-        }
-    } catch (error) {
-        console.error("Erreur avec les notifications :", error);
-        hasNotifications = false;
-    }
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
@@ -98,7 +88,7 @@ async function startTracking() {
             document.getElementById("status").textContent = "Erreur : Timeout réseau";
             document.getElementById("status").style.color = "#ff0000";
             alert("Erreur : La requête a expiré après 60 secondes. Vérifie ta connexion ou réessaie.");
-        }, 60000); // Timeout après 60s
+        }, 60000);
         const response = await fetch('/.netlify/functions/api/start_tracking', {
             method: 'POST',
             signal: controller.signal
@@ -140,6 +130,7 @@ async function stopTracking() {
             document.getElementById("status").textContent = "Statut : En attente";
             document.getElementById("status").style.color = "#d3d3d3";
             lastTokensState = [];
+            clearInterval(updateInterval);
         } else {
             alert(data.error || "Erreur inconnue lors de l'arrêt");
         }
@@ -155,7 +146,7 @@ async function updateTable() {
             method: 'GET'
         });
         const tokens = await response.json();
-        console.log("Réponse get_tokens:", tokens);
+        console.log("Mise à jour tableau - Réponse get_tokens:", tokens);
         const tbody = document.querySelector("#tokenTable tbody");
         tbody.innerHTML = "";
         
@@ -178,24 +169,12 @@ async function updateTable() {
             const displayText = token.name || token.ca.substring(0, 10) + "...";
 
             if (price !== null && price !== undefined) {
+                // Les notifications système sont supprimées, Telegram gère les alertes côté serveur
                 if (token.threshold_high && price >= token.threshold_high && !lastToken.high_alert_sent) {
-                    if (hasNotifications && Notification.permission === "granted") {
-                        new Notification("Alerte Prix Crypto (Haut)", {
-                            body: `Le prix de ${displayText} a dépassé ${token.threshold_high.toFixed(6)} $ ! Actuel : ${price.toFixed(6)} $`,
-                            icon: "/static/icons/icon-192x192.png"
-                        });
-                    }
-                    console.log(`Notification haut pour ${displayText}`);
+                    console.log(`Alerte Telegram envoyée pour seuil haut dépassé : ${displayText}`);
                     token.high_alert_sent = true;
-                }
-                else if (token.threshold_low && price <= token.threshold_low && !lastToken.low_alert_sent) {
-                    if (hasNotifications && Notification.permission === "granted") {
-                        new Notification("Alerte Prix Crypto (Bas)", {
-                            body: `Le prix de ${displayText} est tombé sous ${token.threshold_low.toFixed(6)} $ ! Actuel : ${price.toFixed(6)} $`,
-                            icon: "/static/icons/icon-192x192.png"
-                        });
-                    }
-                    console.log(`Notification bas pour ${displayText}`);
+                } else if (token.threshold_low && price <= token.threshold_low && !lastToken.low_alert_sent) {
+                    console.log(`Alerte Telegram envoyée pour seuil bas atteint : ${displayText}`);
                     token.low_alert_sent = true;
                 }
                 if (token.threshold_high && token.threshold_low && token.threshold_low < price && price < token.threshold_high) {
@@ -258,11 +237,24 @@ function clearInputs() {
     document.getElementById("threshold_low").value = "";
 }
 
+let updateInterval = null;
+
 function updateTablePeriodically() {
-    if (document.getElementById("stopButton").disabled) return;
-    console.log("Mise à jour du tableau");
+    if (document.getElementById("stopButton").disabled) {
+        console.log("Mise à jour arrêtée car suivi inactif");
+        return;
+    }
+    console.log("Démarrage mise à jour périodique sur", navigator.userAgent);
     updateTable();
-    setTimeout(updateTablePeriodically, 1000);
+    updateInterval = setInterval(() => {
+        if (document.getElementById("stopButton").disabled) {
+            clearInterval(updateInterval);
+            console.log("Mise à jour périodique arrêtée");
+            return;
+        }
+        console.log("Mise à jour tableau en cours...");
+        updateTable();
+    }, 1000);
 }
 
 if ('serviceWorker' in navigator) {

@@ -9,7 +9,7 @@ let tokens = [];
 let price_updates = {};
 let running = false;
 let websocket = null;
-let alerts = []; // Initialisation explicite comme tableau vide
+let alerts = [];
 
 function send_telegram_notification(message) {
     return telegramBot.sendMessage(chatId, message);
@@ -18,7 +18,7 @@ function send_telegram_notification(message) {
 async function get_sol_usd_rate() {
     try {
         const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-        return response.data.solana.usd || 150; // Valeur par défaut si erreur
+        return response.data.solana.usd || 150;
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Erreur taux SOL/USD : ${error.message}`);
         return 150;
@@ -39,7 +39,9 @@ async function get_price_from_dexscreener(ca) {
     try {
         const response = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${ca}`);
         const raydiumPair = response.data.pairs && response.data.pairs.find(pair => pair.dexId === "raydium");
-        return raydiumPair ? parseFloat(raydiumPair.priceUsd) : null;
+        const price = raydiumPair ? parseFloat(raydiumPair.priceUsd) : null;
+        console.log(`[${new Date().toISOString()}] Prix Raydium pour ${ca} : ${price}`);
+        return price;
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Erreur Dexscreener : ${error.message}`);
         return null;
@@ -74,21 +76,23 @@ async function websocket_listener() {
                     const price = sol_amount / token_amount;
                     const price_usd = price * sol_usd_rate;
                     price_updates[ca] = price_usd;
+                    console.log(`[${timestamp}] Prix Pumpfun mis à jour pour ${ca} : ${price_usd}`);
                     tokens.filter(token => token.ca === ca && !token.is_raydium).forEach(token => {
                         token.price = price_usd;
                         const display_text = token.name || ca.substring(0, 10) + "...";
                         if (token.threshold_high && price_usd >= token.threshold_high && !token.high_alert_sent) {
                             console.log(`[${timestamp}] Seuil haut dépassé pour ${display_text} !`);
-                            const alertMsg = `[${timestamp}] Haut - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_high.toFixed(6)} $)`;
+                            const alertMsg = `[${timestamp}] Haut - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_high.toFixed(6)} $)`
                             alerts.push(alertMsg);
                             send_telegram_notification(`Le prix de ${token.name || token.ca} a dépassé ${token.threshold_high.toFixed(6)} $ ! Actuel : ${price_usd.toFixed(6)} $`);
+                            token.high_alert_sent = true;
                         } else if (token.threshold_low && price_usd <= token.threshold_low && !token.low_alert_sent) {
                             console.log(`[${timestamp}] Seuil bas atteint pour ${display_text} !`);
                             const alertMsg = `[${timestamp}] Bas - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_low.toFixed(6)} $)`;
                             alerts.push(alertMsg);
                             send_telegram_notification(`Le prix de ${token.name || token.ca} est tombé sous ${token.threshold_low.toFixed(6)} $ ! Actuel : ${price_usd.toFixed(6)} $`);
+                            token.low_alert_sent = true;
                         }
-                        // Réinitialisation des alertes
                         if (token.threshold_high && token.threshold_low && token.threshold_low < price_usd < token.threshold_high) {
                             token.high_alert_sent = false;
                             token.low_alert_sent = false;
@@ -107,7 +111,7 @@ async function websocket_listener() {
 
     websocket.on('close', () => {
         console.log(`[${new Date().toISOString()}] Connexion WebSocket fermée`);
-        if (running) setTimeout(websocket_listener, 5000); // Reconnexion après 5s
+        if (running) setTimeout(websocket_listener, 5000);
     });
 }
 
@@ -123,6 +127,7 @@ function check_prices_raydium() {
                 if (price_usd !== null) {
                     token.price = price_usd;
                     price_updates[token.ca] = price_usd;
+                    console.log(`[${new Date().toISOString()}] Prix Raydium appliqué pour ${token.ca} : ${price_usd}`);
                     const display_text = token.name || token.ca.substring(0, 10) + "...";
                     const timestamp = new Date().toISOString();
                     if (token.threshold_high && price_usd >= token.threshold_high && !token.high_alert_sent) {
@@ -130,13 +135,14 @@ function check_prices_raydium() {
                         const alertMsg = `[${timestamp}] Haut - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_high.toFixed(6)} $)`;
                         alerts.push(alertMsg);
                         send_telegram_notification(`Le prix de ${token.name || token.ca} a dépassé ${token.threshold_high.toFixed(6)} $ ! Actuel : ${price_usd.toFixed(6)} $`);
+                        token.high_alert_sent = true;
                     } else if (token.threshold_low && price_usd <= token.threshold_low && !token.low_alert_sent) {
                         console.log(`[${timestamp}] Seuil bas atteint pour ${display_text} !`);
                         const alertMsg = `[${timestamp}] Bas - ${display_text}: ${price_usd.toFixed(6)} $ (Seuil: ${token.threshold_low.toFixed(6)} $)`;
                         alerts.push(alertMsg);
                         send_telegram_notification(`Le prix de ${token.name || token.ca} est tombé sous ${token.threshold_low.toFixed(6)} $ ! Actuel : ${price_usd.toFixed(6)} $`);
+                        token.low_alert_sent = true;
                     }
-                    // Réinitialisation des alertes
                     if (token.threshold_high && token.threshold_low && token.threshold_low < price_usd < token.threshold_high) {
                         token.high_alert_sent = false;
                         token.low_alert_sent = false;
@@ -199,6 +205,7 @@ exports.handler = async (event, context) => {
                 high_alert_sent: false,
                 low_alert_sent: false
             });
+            console.log(`[${new Date().toISOString()}] Token ajouté : ${ca}`);
             return {
                 statusCode: 200,
                 body: JSON.stringify({ success: true })
@@ -212,28 +219,24 @@ exports.handler = async (event, context) => {
                 body: JSON.stringify({ success: true })
             };
         }
-        if (event.httpMethod === 'POST' && path.startsWith('/remove_token/')) {
-            const indexMatch = path.match(/\/remove_token\/(\d+)/);
-            if (!indexMatch) {
-                return {
-                    statusCode: 400,
-                    body: JSON.stringify({ error: "Index invalide dans l’URL" })
-                };
-            }
-            const index = parseInt(indexMatch[1], 10);
+        if (event.httpMethod === 'POST' && path === '/remove_token') {
+            const data = JSON.parse(event.body || '{}');
+            const index = parseInt(data.index, 10);
             if (isNaN(index) || index < 0 || index >= tokens.length) {
                 return {
                     statusCode: 400,
                     body: JSON.stringify({ error: "Index invalide" })
                 };
             }
-            tokens.splice(index, 1); // Supprime le token à l'index spécifié
+            tokens.splice(index, 1);
+            console.log(`[${new Date().toISOString()}] Token supprimé à l’index ${index}`);
             return {
                 statusCode: 200,
                 body: JSON.stringify({ success: true })
             };
         }
         if (event.httpMethod === 'GET' && path === '/get_tokens') {
+            console.log(`[${new Date().toISOString()}] Renvoi des tokens : ${JSON.stringify(tokens)}`);
             return {
                 statusCode: 200,
                 body: JSON.stringify(tokens)
