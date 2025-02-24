@@ -53,6 +53,7 @@ async function get_price_from_dexscreener(ca) {
 async function websocket_listener() {
     const uri = "wss://pumpportal.fun/api/data";
     const sol_usd_rate = await get_sol_usd_rate();
+    console.log(`[${new Date().toISOString()}] Tentative de connexion WebSocket à ${uri}`);
     websocket = new WebSocket(uri);
 
     websocket.on('open', () => {
@@ -61,7 +62,7 @@ async function websocket_listener() {
         if (pumpfun_tokens.length) {
             const payload = { method: "subscribeTokenTrade", keys: pumpfun_tokens };
             websocket.send(JSON.stringify(payload));
-            console.log(`[${new Date().toISOString()}] Abonnement WebSocket : ${JSON.stringify(payload)}`);
+            console.log(`[${new Date().toISOString()}] Abonnement WebSocket envoyé : ${JSON.stringify(payload)}`);
         } else {
             console.log(`[${new Date().toISOString()}] Aucun token Pumpfun à souscrire`);
         }
@@ -103,6 +104,8 @@ async function websocket_listener() {
                             token.low_alert_sent = false;
                         }
                     });
+                } else {
+                    console.log(`[${timestamp}] Token ${ca} : token_amount <= 0, pas de mise à jour du prix`);
                 }
             } else {
                 console.log(`[${timestamp}] Données WebSocket invalides ou incomplètes : ${JSON.stringify(data)}`);
@@ -118,7 +121,10 @@ async function websocket_listener() {
 
     websocket.on('close', () => {
         console.log(`[${new Date().toISOString()}] Connexion WebSocket fermée`);
-        if (running) setTimeout(websocket_listener, 5000);
+        if (running) {
+            console.log(`[${new Date().toISOString()}] Tentative de reconnexion dans 5s`);
+            setTimeout(websocket_listener, 5000);
+        }
     });
 }
 
@@ -251,6 +257,7 @@ exports.handler = async (event, context) => {
             };
         }
         if (event.httpMethod === 'GET' && path === '/get_alerts') {
+            console.log(`[${new Date().toISOString()}] Renvoi des alertes : ${JSON.stringify(alerts.slice(-10))}`);
             return {
                 statusCode: 200,
                 body: JSON.stringify(alerts.slice(-10))
